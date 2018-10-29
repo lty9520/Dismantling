@@ -321,6 +321,263 @@ void on_trackbar_binimg(int, void*)
 	imshow("二值化图像", binimg);
 }
 */
+
+
+//On Symmetry Detection
+void detection(vector<vector<Point> > contours)
+{
+	vector<Point> boudcw;
+	vector<Point> boudccw;
+
+}
+
+/** 计算二值图像的重心
+* @param[in] img  输入的待处理图像
+* @param[out] center 重心坐标
+* @retval 0  操作成功
+* @retval -1 操作失败
+* @note 输入图像是二值化图像
+* @note xc=M10/M00, yc=M01/M00, 其中 Mx_order,y_order=SUMx,y(I(x,y)*x^x_order*y^y_order)
+*/
+void getGravityCenter(vector<vector<Point> > contours, Mat img)
+{
+	//计算轮廓矩 	
+	vector<Moments> mu(contours.size());
+	for (int i = 0; i < contours.size(); i++)
+	{
+		mu[i] = moments(contours[i], false);
+	}
+	//计算轮廓的质心 	
+	vector<Point2f> mc(contours.size());
+	for (int i = 0; i < contours.size(); i++)
+	{
+		mc[i] = Point2d(mu[i].m10 / mu[i].m00, mu[i].m01 / mu[i].m00);
+	}
+	for (int i = 0; i < contours.size(); i++)
+	{
+		Scalar color = Scalar(255, 0, 0);
+		drawContours(img, contours, i, color, 2, 8, hierarchy, 0, Point());
+		circle(img, mc[i], 5, Scalar(0, 0, 255), -1, 8, 0);
+		rectangle(img, boundingRect(contours.at(i)), cvScalar(0, 255, 0));
+		char tam[100];
+		sprintf(tam, "(%0.0f,%0.0f)", mc[i].x, mc[i].y);
+		putText(img, tam, Point(mc[i].x, mc[i].y), FONT_HERSHEY_SIMPLEX, 0.4, cvScalar(255, 0, 255), 1);
+	}
+	imshow("center", img);
+}
+
+void get_pointlist_inner_contour2(Mat src, vector<Point> &contourlist)
+{
+	
+	vector<vector<Point> > contours_out;
+	vector<Vec4i> hierarchy_out;
+	findContours(src, contours_out, hierarchy_out, RETR_EXTERNAL, CHAIN_APPROX_NONE);
+
+
+	vector<vector<Point> > contours_all;
+	vector<Vec4i> hierarchy_all;
+	findContours(src, contours_all, hierarchy_all, RETR_TREE, CHAIN_APPROX_NONE);
+
+	if (contours_all.size() == contours_out.size()) //没有内轮廓，则提前返回  
+		cout << "without inner contours" << endl;
+
+	for (int i = 0; i < contours_out.size(); i++)
+	{
+		int conloursize = contours_out[i].size();
+		for (int j = 0; j < contours_all.size(); j++)
+		{
+			int tem_size = contours_all[j].size();
+			if (conloursize == tem_size)
+			{
+				swap(contours_all[j], contours_all[contours_all.size() - 1]);
+				contours_all.pop_back();
+				break;
+			}
+		}
+	}
+
+	//contours_all中只剩下内轮廓  
+	//查找最大轮廓  
+	double maxarea = 0;
+	int maxAreaIdx = 0;
+	for (int index = contours_all.size() - 1; index >= 0; index--)
+	{
+		double tmparea = fabs(contourArea(contours_all[index]));
+		if (tmparea > maxarea)
+		{
+			maxarea = tmparea;
+			maxAreaIdx = index;//记录最大轮廓的索引号  
+		}
+	}
+
+	contourlist = contours_all[maxAreaIdx];
+
+}
+
+//coutours merge
+void coutour_merge(vector<vector<Point> > contours)
+{
+	vector<Point> temp;
+	vector<vector<Point> > contours_result;
+	vector<vector<Point> >::iterator it = contours.begin();
+	contours.erase(it);
+	for (int i = 0; i < contours.size(); i++)
+	{
+		temp = contours[i];
+		
+	}
+}
+
+void zhangSkeleton(Mat &srcimage)
+{
+	int kernel[9];
+	int nl = srcimage.rows;
+	int nc = srcimage.cols;
+	vector<Point> delete_list;
+	int A, B;
+	while (true)
+	{
+		for (int j = 1; j < nl - 1; j++)
+		{
+			uchar* data_pre = srcimage.ptr<uchar>(j - 1);
+			uchar* data = srcimage.ptr<uchar>(j);
+			uchar* data_next = srcimage.ptr<uchar>(j + 1);
+			for (int i = 1; i < (nc - 1); i++)
+			{
+				if (data[i] == 255)
+				{
+					kernel[0] = 1;
+					if (data_pre[i] == 255) kernel[1] = 1;
+					else  kernel[1] = 0;
+					if (data_pre[i + 1] == 255) kernel[2] = 1;
+					else  kernel[2] = 0;
+					if (data[i + 1] == 255) kernel[3] = 1;
+					else  kernel[3] = 0;
+					if (data_next[i + 1] == 255) kernel[4] = 1;
+					else  kernel[4] = 0;
+					if (data_next[i] == 255) kernel[5] = 1;
+					else  kernel[5] = 0;
+					if (data_next[i - 1] == 255) kernel[6] = 1;
+					else  kernel[6] = 0;
+					if (data[i - 1] == 255) kernel[7] = 1;
+					else  kernel[7] = 0;
+					if (data_pre[i - 1] == 255) kernel[8] = 1;
+					else  kernel[8] = 0;
+
+					B = 0;
+					for (int k = 1; k < 9; k++)
+					{
+						B = B + kernel[k];
+					}
+					if ((B >= 2) && (B <= 6))
+					{
+						A = 0;
+						if (!kernel[1] && kernel[2]) A++;
+						if (!kernel[2] && kernel[3]) A++;
+						if (!kernel[3] && kernel[4]) A++;
+						if (!kernel[4] && kernel[5]) A++;
+						if (!kernel[5] && kernel[6]) A++;
+						if (!kernel[6] && kernel[7]) A++;
+						if (!kernel[7] && kernel[8]) A++;
+						if (!kernel[8] && kernel[1]) A++;
+						//
+						if (A == 1)
+						{
+							if ((kernel[1] * kernel[3] * kernel[5] == 0)
+								&& (kernel[3] * kernel[5] * kernel[7] == 0))
+							{
+								delete_list.push_back(Point(i, j));
+							}
+						}
+					}
+				}
+			}
+		}
+		int size = delete_list.size();
+		if (size == 0)
+		{
+			break;
+		}
+		for (int n = 0; n < size; n++)
+		{
+			Point tem;
+			tem = delete_list[n];
+			uchar* data = srcimage.ptr<uchar>(tem.y);
+			data[tem.x] = 0;
+		}
+		delete_list.clear();
+		for (int j = 1; j < nl - 1; j++)
+		{
+			uchar* data_pre = srcimage.ptr<uchar>(j - 1);
+			uchar* data = srcimage.ptr<uchar>(j);
+			uchar* data_next = srcimage.ptr<uchar>(j + 1);
+			for (int i = 1; i < (nc - 1); i++)
+			{
+				if (data[i] == 255)
+				{
+					kernel[0] = 1;
+					if (data_pre[i] == 255) kernel[1] = 1;
+					else  kernel[1] = 0;
+					if (data_pre[i + 1] == 255) kernel[2] = 1;
+					else  kernel[2] = 0;
+					if (data[i + 1] == 255) kernel[3] = 1;
+					else  kernel[3] = 0;
+					if (data_next[i + 1] == 255) kernel[4] = 1;
+					else  kernel[4] = 0;
+					if (data_next[i] == 255) kernel[5] = 1;
+					else  kernel[5] = 0;
+					if (data_next[i - 1] == 255) kernel[6] = 1;
+					else  kernel[6] = 0;
+					if (data[i - 1] == 255) kernel[7] = 1;
+					else  kernel[7] = 0;
+					if (data_pre[i - 1] == 255) kernel[8] = 1;
+					else  kernel[8] = 0;
+
+					B = 0;
+					for (int k = 1; k < 9; k++)
+					{
+						B = B + kernel[k];
+					}
+					if ((B >= 2) && (B <= 6))
+					{
+						A = 0;
+						if (!kernel[1] && kernel[2]) A++;
+						if (!kernel[2] && kernel[3]) A++;
+						if (!kernel[3] && kernel[4]) A++;
+						if (!kernel[4] && kernel[5]) A++;
+						if (!kernel[5] && kernel[6]) A++;
+						if (!kernel[6] && kernel[7]) A++;
+						if (!kernel[7] && kernel[8]) A++;
+						if (!kernel[8] && kernel[1]) A++;
+						//
+						if (A == 1)
+						{
+							if ((kernel[1] * kernel[3] * kernel[7] == 0)
+								&& (kernel[1] * kernel[5] * kernel[7] == 0))
+							{
+								delete_list.push_back(Point(i, j));
+							}
+						}
+					}
+				}
+			}
+		}
+		if (size == 0)
+		{
+			break;
+		}
+		for (int n = 0; n < size; n++)
+		{
+			Point tem;
+			tem = delete_list[n];
+			uchar* data = srcimage.ptr<uchar>(tem.y);
+			data[tem.x] = 0;
+		}
+		delete_list.clear();
+	}
+	imshow("skeleton", srcimage);
+}
+
 int main()
 {
 	Mat img;
@@ -331,20 +588,57 @@ int main()
 	cout << "phase 1" << endl;
 	binimg = img.clone();
 	//进行二值化处理，选择119，200为阈值
-	threshold(img, binimg, 119, 200, CV_THRESH_BINARY);
+	threshold(img, binimg, 119, 255, CV_THRESH_BINARY);
 	namedWindow("二值化图像");
 	imshow("二值化图像", binimg);
 	cout << "phase 2" << endl;
-	findContours(binimg, contours, hierarchy, RETR_TREE, CHAIN_APPROX_SIMPLE);
+
+	//zhangSkeleton(binimg);
+	
+
+
+	findContours(binimg, contours, hierarchy, RETR_CCOMP, CHAIN_APPROX_NONE);
 	binimg = cv::Scalar::all(0);
+	cout << "phase 3" << endl;
+	coutour_merge(contours); 
+	Point center;
+	//getGravityCenter(contours, img);
+	//vector<Point> contourlist;
+	//get_pointlist_inner_contour2(binimg, contourlist, contours_out, contours_all);
+
+	//对每个轮廓的点集 找逼近多边形
+	//vector<vector<Point>> approxPoint(contours.size());
+	//for (int i = 0; i < (int)contours.size(); i++)
+	//{
+	//	approxPolyDP(contours[i], approxPoint[i], 3, true);
+	//}
+
+	vector<int>Index;
+	for (int i = 0; i < contours.size() - 1;)
+	{
+		int next;
+		if (i ==0 && hierarchy[i][0] == -1)
+		{
+			next = i + 1;
+			i = next;
+			continue;
+		}
+		if (hierarchy[i][0] != -1)
+		{
+			next = hierarchy[i][0];
+			Index.push_back(i);
+			i = next;
+		}
+	}
+
 	drawContours(binimg, contours, -1, Scalar::all(255), 1, 8, hierarchy);
 	imshow("Contours image", binimg);
-	cout << "phase 3" << endl;
+	cout << "phase 4" << endl;
 	//Canny边缘提取，
 	Mat canny;
 	Canny(binimg, canny, 350, 400);
 	imshow("Canny边缘", canny);
-	cout << "phase 4" << endl;
+	cout << "phase 5" << endl;
 	//概率霍夫变换提取
 	HoughLineFinder hlfinder;
 	hlfinder.setLengthAndGap(10, 5);
@@ -352,7 +646,7 @@ int main()
 	vector<Vec4i> lines = hlfinder.findLines(canny);
 	hlfinder.drawDetectedLines(binimg);
 	imshow("HoughLine", binimg);
-	cout << "phase 5" << endl;
+	cout << "phase 6" << endl;
 
 
 	
@@ -371,7 +665,7 @@ int main()
 	imshow("Shi-Tomasi", binimg);
 	cout << "phase 6" << endl;
 
-	detectsymaxis(binimg, corners, binimg.rows, binimg.cols);
+	//detectsymaxis(binimg, corners, binimg.rows, binimg.cols);
 	waitKey();
 	return 0;
 }
