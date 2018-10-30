@@ -7,6 +7,7 @@
 #include <math.h>
 #include <fstream>
 #include "Harris.h"
+#include "convexhull.h"
 
 #define M_PI 3.14159265358979323846
 #define INFINITE_NUMBER 10000
@@ -366,6 +367,95 @@ void getGravityCenter(vector<vector<Point> > contours, Mat img)
 	imshow("center", img);
 }
 
+//求余弦值
+//************************************
+// Method:    get_cos
+// FullName:  get_cos
+// Access:    public 
+// Returns:   void
+// Qualifier:
+// Parameter: vector<Point>  points		所有点数组
+// Parameter: vector<double> mcos		所有点余弦值数组
+// Parameter: int id			最小y值点点号
+// Parameter: int size			数组大小
+//************************************
+void get_cos(vector<Point> points, vector<double> mcos, int id, int size){  //get point's cos
+	int i;
+	double coss;
+	for (i = 0; i < size; i++){
+		if (i == id){
+			mcos[i] = 2;
+		}
+		else{
+			coss = (points[i].x - points[id].x) / sqrt((points[i].x - points[id].x) * (points[i].x - points[id].x) + (points[i].y - points[id].y) * (points[i].y - points[id].y));
+			mcos[i] = coss;
+		}
+	}
+}
+
+//求方位角（rad）
+//************************************
+// Method:    calcAzimuthAngle
+// FullName:  calcAzimuthAngle
+// Access:    public 
+// Returns:   double
+// Qualifier:
+// Parameter: double x0		中心点x
+// Parameter: double y0		中心点y
+// Parameter: double x		所求点x
+// Parameter: double y		所求点y
+//************************************
+double calcAzimuthAngle(double x0, double y0, double x, double y)
+{
+	double dx = x - x0;
+	double dy = y - y0;
+	//求象限角
+	double theta = atan((y - y0) / (x - x0));
+	if (dx > 0 && dy > 0){			//第一象限
+		return theta;
+	}
+	else if (dx < 0 && dy > 0){		//第二象限
+		return theta + M_PI;
+	}
+	else if (dx < 0 && dy < 0){		//第三象限
+		return theta + M_PI;
+	}
+	else if (dx > 0 && dy < 0){		//第四象限
+		return theta + (2 * M_PI);
+	}
+}
+
+//按照余弦值从大到小排序
+//************************************
+// Method:    sort_points_down
+// FullName:  sort_points_down
+// Access:    public 
+// Returns:   void
+// Qualifier:
+// Parameter: vector<Point>  points			所有点数组
+// Parameter: vector<double> mcos			所有点余弦值数组
+// Parameter: int size				数组大小
+//************************************
+void sort_points_down(vector<Point> points, vector<double> mcos, int size){   //sort the points
+	int i, j;
+	double temp_cos;
+	Point temp_point;
+	for (i = 0; i < size; i++){
+		for (j = 0; j < size - i - 1; j++){      //bubble sorting
+			if (mcos[j] < mcos[j + 1]){
+				temp_cos = mcos[j];
+				mcos[j] = mcos[j + 1];
+				mcos[j + 1] = temp_cos;
+
+				temp_point = points[j];
+				points[j] = points[j + 1];
+				points[j + 1] = temp_point;
+			}
+		}
+	}
+}
+
+
 void get_pointlist_inner_contour2(Mat src, vector<Point> &contourlist)
 {
 	
@@ -414,18 +504,92 @@ void get_pointlist_inner_contour2(Mat src, vector<Point> &contourlist)
 
 }
 
-//coutours merge
-void coutour_merge(vector<vector<Point> > contours)
+Point get_center(vector<Point> points)
 {
-	vector<Point> temp;
-	vector<vector<Point> > contours_result;
-	vector<vector<Point> >::iterator it = contours.begin();
-	contours.erase(it);
-	for (int i = 0; i < contours.size(); i++)
+	int ma_x, ma_y, mi_x, mi_y, size, x_cen, y_cen;
+	size = points.size();
+	vector<int>x(size);
+	vector<int>y(size);
+	for (int i = 0; i < size; i++)
 	{
-		temp = contours[i];
-		
+		x[i] = points[i].x;
+		y[i] = points[i].y;
 	}
+	sort(x.begin(), x.end());
+	sort(y.begin(), y.end());
+	ma_x = x[size - 1];
+	mi_x = x[0];
+	ma_y = y[size - 1];
+	mi_y = y[0];
+	x_cen = (ma_x - mi_x) / 2;
+	y_cen = (ma_y - mi_y) / 2;
+	Point center;
+	center.x = x_cen;
+	center.y = y_cen;
+	return center;
+}
+
+//coutours merge
+void coutour_merge(vector<vector<Point> > contours, int r)
+{
+	vector<int>Index;
+	for (int i = 0; i < contours.size() - 1;)
+	{
+		int next;
+		if (i == 0 && hierarchy[i][0] == -1)
+		{
+			next = i + 1;
+			i = next;
+			continue;
+		}
+		if (hierarchy[i][0] != -1)
+		{
+			next = hierarchy[i][0];
+			Index.push_back(i);
+			i = next;
+		}
+	}
+
+	cout << contours[1][1] << endl;
+	int size = 0;
+	for (int i = 0; i < Index.size(); i++)
+	{
+		size = size + contours[Index[i]].size();
+	}
+
+	vector<Point>contours_result(size);
+	int n = 0;
+	for (int i = 0; i < Index.size(); i++)
+	{
+		int num = contours[Index[i]].size();
+		for (int j = 0; j < num; j++)
+		{
+			contours_result[n] = contours[Index[i]][j];
+			n++;
+		}
+	}
+
+	if (contours_result.size() % 2 != 0)
+	{
+		contours_result.pop_back();
+	}
+
+	Point center_point;
+	center_point = get_center(contours_result);
+
+	vector<Point> startpoint;
+
+	convexhull_Tools ch;
+
+	for (int i = 0; i < contours_result.size(); i++)
+	{
+		if (contours_result[i].x == r / 2)
+		{
+			startpoint.push_back(contours_result[i]);
+		}
+	}
+
+	int a = 0;
 }
 
 void zhangSkeleton(Mat &srcimage)
@@ -600,7 +764,7 @@ int main()
 	findContours(binimg, contours, hierarchy, RETR_CCOMP, CHAIN_APPROX_NONE);
 	binimg = cv::Scalar::all(0);
 	cout << "phase 3" << endl;
-	coutour_merge(contours); 
+	coutour_merge(contours, binimg.rows); 
 	Point center;
 	//getGravityCenter(contours, img);
 	//vector<Point> contourlist;
@@ -613,23 +777,8 @@ int main()
 	//	approxPolyDP(contours[i], approxPoint[i], 3, true);
 	//}
 
-	vector<int>Index;
-	for (int i = 0; i < contours.size() - 1;)
-	{
-		int next;
-		if (i ==0 && hierarchy[i][0] == -1)
-		{
-			next = i + 1;
-			i = next;
-			continue;
-		}
-		if (hierarchy[i][0] != -1)
-		{
-			next = hierarchy[i][0];
-			Index.push_back(i);
-			i = next;
-		}
-	}
+	
+
 
 	drawContours(binimg, contours, -1, Scalar::all(255), 1, 8, hierarchy);
 	imshow("Contours image", binimg);

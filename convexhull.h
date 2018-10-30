@@ -37,7 +37,7 @@ using namespace pcl;
 
 
 
-class convexhull{
+class convexhull_Tools{
 
 
 public:
