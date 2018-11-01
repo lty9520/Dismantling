@@ -7,7 +7,6 @@
 #include <math.h>
 #include <fstream>
 #include "Harris.h"
-#include "convexhull.h"
 
 #define M_PI 3.14159265358979323846
 #define INFINITE_NUMBER 10000
@@ -17,10 +16,7 @@
 using namespace std;
 using namespace cv;
 
-const int w = 500;
-int levels = 0;
-vector<vector<Point> > contours;
-vector<Vec4i> hierarchy;
+
 
 
 class HoughLineFinder
@@ -80,6 +76,15 @@ public:
 	}
 };
 
+//************************************
+// Method:    one_lines
+// FullName:  one_lines
+// Access:    public 
+// Returns:   bool
+// Qualifier:
+// Parameter: vector<Point> line1
+// Parameter: vector<Point> line2
+//************************************
 bool one_lines(vector<Point> line1, vector<Point> line2)
 {
 	Vec4f l1, l2;
@@ -96,6 +101,15 @@ bool one_lines(vector<Point> line1, vector<Point> line2)
 		return false;
 }
 
+//************************************
+// Method:    distance_equal
+// FullName:  distance_equal
+// Access:    public 
+// Returns:   bool
+// Qualifier:
+// Parameter: vector<Point> line1
+// Parameter: vector<Point> line2
+//************************************
 bool distance_equal(vector<Point> line1, vector<Point> line2)
 {
 	double len1 = sqrt(abs((line1[0].x - line1[1].x) * (line1[0].x - line1[1].x)) + abs((line1[0].y - line1[1].y) * (line1[0].y - line1[1].y)));
@@ -135,6 +149,18 @@ int max_y(Point p1, Point p2)
 		return p2.y;
 }
 
+//************************************
+// Method:    draw_symaxis
+// FullName:  draw_symaxis
+// Access:    public 
+// Returns:   void
+// Qualifier:
+// Parameter: Mat img
+// Parameter: Point l1_p1
+// Parameter: Point l1_p2
+// Parameter: Point l2_p1
+// Parameter: Point l2_p2
+//************************************
 void draw_symaxis(Mat img, Point l1_p1, Point l1_p2, Point l2_p1, Point l2_p2)
 {
 	Point result_p1, result_p2;
@@ -325,10 +351,73 @@ void on_trackbar_binimg(int, void*)
 
 
 //On Symmetry Detection
-void detection(vector<vector<Point> > contours)
+//************************************
+// Method:    symmetrydetection
+// FullName:  symmetrydetection
+// Access:    public 
+// Returns:   void
+// Qualifier:
+// Parameter: vector<Point> con_r	右半部边界点
+// Parameter: vector<Point> con_l	左半部边界点
+// Parameter: int num_symax			最终对称轴数量
+//************************************
+void symmetrydetection(vector<Point> con_r, vector<Point> con_l)
 {
-	vector<Point> boudcw;
-	vector<Point> boudccw;
+	//平衡数量
+	if (con_r.size() > con_l.size())
+	{
+		int dif_size = con_r.size() - con_l.size();
+		int inter = floor(con_r.size() / dif_size);
+		for (; dif_size > 0; dif_size--)
+		{
+			con_r.erase(con_r.begin() + dif_size * inter);
+		}
+	}
+	else
+	{
+		int dif_size = con_l.size() - con_r.size();
+		int inter = floor(con_l.size() / dif_size);
+		for (; dif_size > 0; dif_size--)
+		{
+			con_l.erase(con_l.begin() + dif_size * inter);
+		}
+	}
+
+	int num_symax = 0;
+	vector<double> line_k;
+	//判定是否为对称轴
+	for (int i = 0; i < con_l.size(); i++)
+	{
+		int n = 0;
+		vector<double> line_para = get_line_para(con_l[i], con_r[i]);
+		for (int j = 0, m = con_r.size() - 1; j < con_l.size(), m >= 0; j++, m--)
+		{
+			vector<double> dis_lr = dis_p2l(con_l[j], con_r[m], line_para[0], line_para[1]);
+			if (dis_lr[0] == 0 || dis_lr[1] == 0)
+				continue;
+			if (flag_disequal(dis_lr[0], dis_lr[1]))
+				n++;
+			else
+				continue;
+		}
+		if (n == con_r.size() - 5)
+		{
+			num_symax++;
+
+			line_k.push_back(line_para[0]);
+		}
+
+	}
+	//将相距很近的对称轴合并
+	for (int i = 0; i < line_k.size() - 1; i++)
+	{
+		double rad = get_lines_arctan(line_k[i], line_k[i + 1], 1);
+		if (abs(rad) < 1)
+		{
+			num_symax--;
+		}
+	}
+	cout << "Symmetry axis number :" << num_symax << endl;
 
 }
 
@@ -340,7 +429,7 @@ void detection(vector<vector<Point> > contours)
 * @note 输入图像是二值化图像
 * @note xc=M10/M00, yc=M01/M00, 其中 Mx_order,y_order=SUMx,y(I(x,y)*x^x_order*y^y_order)
 */
-void getGravityCenter(vector<vector<Point> > contours, Mat img)
+void getGravityCenter(vector<vector<Point> > contours, Mat img, vector<Vec4i> hierarchy)
 {
 	//计算轮廓矩 	
 	vector<Moments> mu(contours.size());
@@ -365,6 +454,28 @@ void getGravityCenter(vector<vector<Point> > contours, Mat img)
 		putText(img, tam, Point(mc[i].x, mc[i].y), FONT_HERSHEY_SIMPLEX, 0.4, cvScalar(255, 0, 255), 1);
 	}
 	imshow("center", img);
+}
+
+//求最小y值点号
+//************************************
+// Method:    get_miny_point_id
+// FullName:  get_miny_point_id
+// Access:    public 
+// Returns:   int
+// Qualifier:
+// Parameter: mpoint * points	所有点数组
+// Parameter: int size			数组大小
+//************************************
+int get_miny_point_id(vector<Point> points, int size){ //get the point with min_y
+	int i, min_id = 0;
+	double miny = 10000;
+	for (i = 0; i < size; i++){
+		if (points[i].y < miny){
+			miny = points[i].y;
+			min_id = i;
+		}
+	}
+	return min_id;
 }
 
 //求余弦值
@@ -456,6 +567,16 @@ void sort_points_down(vector<Point> points, vector<double> mcos, int size){   //
 }
 
 
+
+//************************************
+// Method:    get_pointlist_inner_contour2
+// FullName:  get_pointlist_inner_contour2
+// Access:    public 
+// Returns:   void
+// Qualifier:
+// Parameter: Mat src
+// Parameter: vector<Point> & contourlist
+//************************************
 void get_pointlist_inner_contour2(Mat src, vector<Point> &contourlist)
 {
 	
@@ -504,6 +625,14 @@ void get_pointlist_inner_contour2(Mat src, vector<Point> &contourlist)
 
 }
 
+//************************************
+// Method:    get_center
+// FullName:  get_center
+// Access:    public 
+// Returns:   Point
+// Qualifier:
+// Parameter: vector<Point> points
+//************************************
 Point get_center(vector<Point> points)
 {
 	int ma_x, ma_y, mi_x, mi_y, size, x_cen, y_cen;
@@ -530,8 +659,22 @@ Point get_center(vector<Point> points)
 }
 
 //coutours merge
-void coutour_merge(vector<vector<Point> > contours, int r)
+//************************************
+// Method:    coutour_merge
+// FullName:  coutour_merge
+// Access:    public 
+// Returns:   vector<vector<Point> >			最终边界点数组[[左半边], [右半边]]
+// Qualifier:
+// Parameter: Mat img							输入图像
+// Parameter: vector<vector<Point> > contours	边界点
+// Parameter: int r								图像row
+//************************************
+vector<vector<Point> > coutour_merge(Mat img, vector<vector<Point> > contours, int r)
 {
+
+	//显示图像
+	Mat img2 = img.clone();
+	//组合边界点存储hierarchy层级关系
 	vector<int>Index;
 	for (int i = 0; i < contours.size() - 1;)
 	{
@@ -550,15 +693,19 @@ void coutour_merge(vector<vector<Point> > contours, int r)
 		}
 	}
 
-	cout << contours[1][1] << endl;
+	//cout << contours[1][1] << endl;
+	//存储所有边界点数量
 	int size = 0;
+	//边界点总数统计
 	for (int i = 0; i < Index.size(); i++)
 	{
 		size = size + contours[Index[i]].size();
 	}
-
+	//顺序边界点存储数组
 	vector<Point>contours_result(size);
+	//顺序边界点数组计数器
 	int n = 0;
+	//将包含层级的边界点转存为去除层级关系的顺序存储
 	for (int i = 0; i < Index.size(); i++)
 	{
 		int num = contours[Index[i]].size();
@@ -568,18 +715,18 @@ void coutour_merge(vector<vector<Point> > contours, int r)
 			n++;
 		}
 	}
-
+	//判断边界点数量是否是偶数
 	if (contours_result.size() % 2 != 0)
 	{
 		contours_result.pop_back();
 	}
-
+	//边界点形心
 	Point center_point;
+	//计算边界点数组的形心坐标
 	center_point = get_center(contours_result);
-
+	/*
+	//起始点
 	vector<Point> startpoint;
-
-	convexhull_Tools ch;
 
 	for (int i = 0; i < contours_result.size(); i++)
 	{
@@ -588,10 +735,177 @@ void coutour_merge(vector<vector<Point> > contours, int r)
 			startpoint.push_back(contours_result[i]);
 		}
 	}
+	*/
 
-	int a = 0;
+	/*
+	//y值最小点点号
+	int id = 0;
+	//求y值最小点点号
+	id = get_miny_point_id(contours_result, contours_result.size());
+	//各点cos值数组
+	vector<double> mcos(contours_result.size());
+	//计算各点cos值
+	get_cos(contours_result, mcos, id, contours_result.size());
+	//按cos值排序（从大到小）
+	sort_points_down(contours_result, mcos, contours_result.size());
+	*/
+
+	//存储各点方位角和点号数组, [[Aziang][id]]
+	vector<vector<double> > rad(contours_result.size(), vector<double>(2));
+	//方位角数组计数器
+	int num = 0;
+	//计算各点相对形心点的方位角
+	for (int i = 0; i < contours_result.size(); i++)
+	{
+		rad[i][0] = calcAzimuthAngle(center_point.x, center_point.y, contours_result[i].x, contours_result[i].y);
+		rad[i][1] = num;
+		num++;
+	}  
+	//按方位角大小进行排序（从小到大（默认））
+	sort(rad.begin(), rad.end());
+	//存储左半边点和右半边点的数组
+	vector<Point> p_left, p_right_down, p_right_up;
+	//将边界点按照方位角划分为左半边和右半边，分别存入相应数组
+	for (int i = 0; i < rad.size(); i++)
+	{
+		if (rad[i][0] <= M_PI * 3 / 2 && rad[i][0] >= M_PI / 2)
+		{
+			p_left.push_back(contours_result[rad[i][1]]);
+		}
+		else if (rad[i][0] < M_PI * 2 && rad[i][0] > M_PI * 3 / 2)
+		{
+			p_right_down.push_back(contours_result[rad[i][1]]);
+		}
+		else if (rad[i][0] < M_PI / 2 && rad[i][0] >= 0)
+		{
+			p_right_up.push_back(contours_result[rad[i][1]]);
+		}
+		else
+			continue;
+	}
+	//左半边点方位角存储数组形式同上
+	vector<vector<double> > rad_left(p_left.size(), vector<double>(2));
+	int num_left = 0;
+	for (int i = 0; i < p_left.size(); i++)
+	{
+		rad_left[i][0] = calcAzimuthAngle(center_point.x, center_point.y, p_left[i].x, p_left[i].y);
+		rad_left[i][1] = num_left;
+		num_left++;
+	}
+	//对左半边点方位角进行排序
+	sort(rad_left.begin(), rad_left.end());
+	//最终左半边边界点存储数组
+	vector<Point> contour_left;
+	//按顺序存储左半边边界点
+	for (int i = 0; i < rad_left.size(); i++)
+	{
+		contour_left.push_back(p_left[rad_left[i][1]]);
+	}
+	reverse(contour_left.begin(), contour_left.end());
+	//右半边下半部点方位角存储数组形式同上
+	vector<vector<double> > rad_right_down(p_right_down.size(), vector<double>(2));
+	int num_right_down = 0;
+	for (int i = 0; i < p_right_down.size(); i++)
+	{
+		rad_right_down[i][0] = calcAzimuthAngle(center_point.x, center_point.y, p_right_down[i].x, p_right_down[i].y);
+		rad_right_down[i][1] = num_right_down;
+		num_right_down++;
+	}
+	//对右半边下半部点方位角进行排序
+	sort(rad_right_down.begin(), rad_right_down.end());
+	//最终右半边下半部边界点存储数组
+	vector<Point> contour_right_down;
+	//按顺序存储右半边下半部边界点
+	for (int i = 0; i < rad_right_down.size(); i++)
+	{
+		contour_right_down.push_back(p_right_down[rad_right_down[i][1]]);
+	}
+	//右半边上半部点方位角存储数组形式同上
+	vector<vector<double> > rad_right_up(p_right_up.size(), vector<double>(2));
+	int num_right_up = 0;
+	for (int i = 0; i < p_right_up.size(); i++)
+	{
+		rad_right_up[i][0] = calcAzimuthAngle(center_point.x, center_point.y, p_right_up[i].x, p_right_up[i].y);
+		rad_right_up[i][1] = num_right_up;
+		num_right_up++;
+	}
+	//对右半边上半部点方位角进行排序
+	sort(rad_right_up.begin(), rad_right_up.end());
+	//最终右半边上半部边界点存储数组
+	vector<Point> contour_right_up;
+	//按顺序存储左半边上半部边界点
+	for (int i = 0; i < rad_right_up.size(); i++)
+	{
+		contour_right_up.push_back(p_right_up[rad_right_up[i][1]]);
+	}
+	//reverse(contour_right_up.begin(), contour_right_up.end());
+	//最终右半边全部边界点存储数组
+	vector<Point> contour_right;
+	for (int i = 0; i < contour_right_down.size(); i++)
+	{
+		contour_right.push_back(contour_right_down[i]);
+	}
+	for (int i = 0; i < contour_right_up.size(); i++)
+	{
+		contour_right.push_back(contour_right_up[i]);
+	}
+	reverse(contour_right.begin(), contour_right.end());
+	//绘制边界点，以检查结果
+	for (int i = 0; i < contour_right.size(); i++)
+	{
+		circle(img, contour_right[i], 1, Scalar::all(125));
+	}
+
+	circle(img, contour_right[contour_right.size() - 1], 5, Scalar::all(255));
+
+	imshow("right", img);
+	//绘制边界点，以检查结果
+	for (int i = 0; i < contour_left.size(); i++)
+	{
+		circle(img2, contour_left[i], 1, Scalar::all(125));
+	}
+
+	circle(img2, contour_left[contour_left.size() - 1], 5, Scalar::all(255));
+
+	imshow("left", img2);
+
+	//最终边界点数组[[左半边], [右半边]]
+	vector<vector<Point> >result;
+	result.push_back(contour_left);
+	result.push_back(contour_right);
+
+	return result;
 }
 
+vector<double> get_line_para(Point p1, Point p2)
+{
+	double k, b;
+	k = (p2.y - p1.y) / (p2.x - p1.x);
+	b = p2.y - k * p2.x;
+	vector<double> result;
+	result.push_back(k);
+	result.push_back(b);
+	return result;
+}
+
+vector<double> dis_p2l(Point p_l, Point p_r, double k, double b)
+{
+	double dis_l = abs((p_l.y - k * p_l.x - b) / sqrt(1 + k * k));
+	double dis_r = abs((p_r.y - k * p_r.x - b) / sqrt(1 + k * k));
+	vector<double> result;
+	result.push_back(dis_l);
+	result.push_back(dis_r);
+	return result;
+}
+
+bool flag_disequal(double dis1, double dis2)
+{
+	//cout << "dis = " << abs(dis1 - dis2) << endl;
+	if (abs(dis1 - dis2) <= 15)
+		return true;
+	else
+		return false;
+}
 void zhangSkeleton(Mat &srcimage)
 {
 	int kernel[9];
@@ -742,8 +1056,43 @@ void zhangSkeleton(Mat &srcimage)
 	imshow("skeleton", srcimage);
 }
 
+//************************************
+// Method:    get_lines_arctan
+// FullName:  get_lines_arctan
+// Access:    public 
+// Returns:   double
+// Qualifier:
+// Parameter: float line_1_k	直线1斜率
+// Parameter: float line_2_k	直线2斜率
+// Parameter: int model			0为返回弧度，其他为返回角度
+//************************************
+double get_lines_arctan(float line_1_k, float line_2_k, int model)
+{
+	if (model == 0)
+	{
+		double tan_k = 0; //直线夹角正切值
+		double lines_arctan;//直线斜率的反正切值
+		tan_k = (line_2_k - line_1_k) / (1 + line_2_k*line_1_k); //求直线夹角的公式
+		lines_arctan = atan(tan_k);
+		return lines_arctan;
+	}
+	else
+	{
+		double tan_k = 0; //直线夹角正切值
+		double lines_arctan;//直线斜率的反正切值
+		tan_k = (line_2_k - line_1_k) / (1 + line_2_k*line_1_k); //求直线夹角的公式
+		lines_arctan = atan(tan_k)* 180.0 / 3.1415926;
+
+		return lines_arctan;
+	}
+}
+
 int main()
 {
+	
+	int levels = 0;
+	vector<vector<Point> > contours;
+	vector<Vec4i> hierarchy;
 	Mat img;
 	Mat binimg;
 	img = imread("111.jpg", 0);	//将读入的彩色图像直接以灰度图像读入
@@ -758,27 +1107,22 @@ int main()
 	cout << "phase 2" << endl;
 
 	//zhangSkeleton(binimg);
-	
-
 
 	findContours(binimg, contours, hierarchy, RETR_CCOMP, CHAIN_APPROX_NONE);
 	binimg = cv::Scalar::all(0);
 	cout << "phase 3" << endl;
-	coutour_merge(contours, binimg.rows); 
-	Point center;
-	//getGravityCenter(contours, img);
-	//vector<Point> contourlist;
-	//get_pointlist_inner_contour2(binimg, contourlist, contours_out, contours_all);
-
-	//对每个轮廓的点集 找逼近多边形
-	//vector<vector<Point>> approxPoint(contours.size());
-	//for (int i = 0; i < (int)contours.size(); i++)
-	//{
-	//	approxPolyDP(contours[i], approxPoint[i], 3, true);
-	//}
-
+	vector<vector<Point> > contours_all;
+	contours_all = coutour_merge(binimg, contours, binimg.rows);
+	//左右两半边界点数组
+	vector<Point> con_l, con_r;
+	con_l = contours_all[0];
+	con_r = contours_all[1];
+	
 	
 
+
+	Point center;
+	
 
 	drawContours(binimg, contours, -1, Scalar::all(255), 1, 8, hierarchy);
 	imshow("Contours image", binimg);
