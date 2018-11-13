@@ -1,4 +1,4 @@
-#include "NeibAreaMarking.h"
+#include "..\Tools\NeibAreaMarking.h"
 
 nbaMarking::nbaMarking()
 {
@@ -118,6 +118,9 @@ void nbaMarking::Seed_Filling(const cv::Mat& binImg, cv::Mat& lableImg, int mode
 
 	int rows = binImg.rows - 1;
 	int cols = binImg.cols - 1;
+
+	vector<vector<int> > labels(0, vector<int>(2));
+	labels.reserve(50);
 	if (model_flag == 8)
 	{
 		// 8邻接方法
@@ -128,11 +131,16 @@ void nbaMarking::Seed_Filling(const cv::Mat& binImg, cv::Mat& lableImg, int mode
 			{
 				if (data[j] == 255)
 				{
+					int num = 0;
 					std::stack<std::pair<int, int>> neighborPixels;
 					neighborPixels.push(std::pair<int, int>(i, j));     // 像素位置: <i,j>
+					labels.resize(i);
+					labels[i - 1].push_back(label);
 					++label;  // 没有重复的团，开始新的标签
 					while (!neighborPixels.empty())
 					{
+						
+
 						std::pair<int, int> curPixel = neighborPixels.top(); //如果与上一行中一个团有重合区域，则将上一行的那个团的标号赋给它
 						int curX = curPixel.first;
 						int curY = curPixel.second;
@@ -146,38 +154,40 @@ void nbaMarking::Seed_Filling(const cv::Mat& binImg, cv::Mat& lableImg, int mode
 						//		|(X + 1, Y - 1)		(X + 1, Y)		(X + 1, Y + 1) |
 						//		——————————————————————————
 						if (lableImg.at<int>(curX - 1, curY) == 255)
-						{// 上边
+						{// 左领域
 							neighborPixels.push(std::pair<int, int>(curX - 1, curY));
 						}
 						if (lableImg.at<int>(curX - 1, curY + 1) == 255)
-						{// 右上边
+						{// 右上领域
 							neighborPixels.push(std::pair<int, int>(curX - 1, curY));
 						}
 						if (lableImg.at<int>(curX, curY + 1) == 255)
-						{// 右边
+						{// 右领域
 							neighborPixels.push(std::pair<int, int>(curX, curY + 1));
 						}
 						if (lableImg.at<int>(curX + 1, curY + 1) == 255)
-						{// 右下边
+						{// 右下领域
 							neighborPixels.push(std::pair<int, int>(curX, curY + 1));
 						}
 						if (lableImg.at<int>(curX + 1, curY) == 255)
-						{// 下边
+						{// 下领域
 							neighborPixels.push(std::pair<int, int>(curX + 1, curY));
 						}
 						if (lableImg.at<int>(curX + 1, curY - 1) == 255)
-						{// 左下边
+						{// 左下领域
 							neighborPixels.push(std::pair<int, int>(curX + 1, curY));
 						}
 						if (lableImg.at<int>(curX, curY - 1) == 255)
-						{//左边
+						{//左领域
 							neighborPixels.push(std::pair<int, int>(curX, curY - 1));
 						}
 						if (lableImg.at<int>(curX - 1, curY - 1) == 255)
-						{//左上边
+						{//左上领域
 							neighborPixels.push(std::pair<int, int>(curX, curY - 1));
 						}
+						num++;
 					}
+					labels[i - 1].push_back(num);
 				}
 			}
 		}
@@ -231,7 +241,7 @@ void nbaMarking::Seed_Filling(const cv::Mat& binImg, cv::Mat& lableImg, int mode
 		}
 	}
 
-
+	int a = 0;
 
 }
 
