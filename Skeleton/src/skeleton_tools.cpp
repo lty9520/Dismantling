@@ -1,4 +1,4 @@
-#include "skeleton_tools.h"
+#include "..\Tools\skeleton_tools.h"
 
 
 skeletonThinning::skeletonThinning()

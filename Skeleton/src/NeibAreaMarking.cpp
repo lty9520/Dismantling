@@ -1,4 +1,5 @@
 #include "..\Tools\NeibAreaMarking.h"
+#include <fstream>
 
 nbaMarking::nbaMarking()
 {
@@ -8,6 +9,16 @@ nbaMarking::nbaMarking()
 nbaMarking::~nbaMarking()
 {
 
+}
+
+void nbaMarking::setLenThres(int lenThres_in)
+{
+	lenThres = lenThres_in;
+}
+
+int nbaMarking::getLenThres()
+{
+	return lenThres;
 }
 
 //************************************
@@ -100,30 +111,30 @@ void nbaMarking::Seed_Filling(const cv::Mat& binImg, cv::Mat& lableImg, int mode
 	lableImg.release();
 	binImg.convertTo(lableImg, CV_32SC1);
 
-	//ofstream fout("5.txt");
-	//for (int i = 0; i < lableImg.rows; i++)
-	//{
-	//	int* temp = lableImg.ptr<int>(i);
-	//	for (int j = 0; j < lableImg.cols; j++)
-	//	{
-	//		int a = temp[j];
-	//		fout << a;
-	//		fout << "\t";
-	//	}
-	//	fout << "\n";
-	//}
-	//fout.close();
+	ofstream fout("5.txt");
+	for (int i = 0; i < lableImg.rows; i++)
+	{
+		int* temp = lableImg.ptr<int>(i);
+		for (int j = 0; j < lableImg.cols; j++)
+		{
+			int a = temp[j];
+			fout << a;
+			fout << "\t";
+		}
+		fout << "\n";
+	}
+	fout.close();
 
 	int label = 1;
 
 	int rows = binImg.rows - 1;
 	int cols = binImg.cols - 1;
 
-	vector<vector<int> > labels(0, vector<int>(2));
+	vector<vector<int> > labels(2, vector<int>(0));
 	labels.reserve(50);
 	if (model_flag == 8)
 	{
-		// 8邻接方法
+		// 8邻域
 		for (int i = 1; i < rows - 1; i++)
 		{
 			int* data = lableImg.ptr<int>(i);
@@ -134,9 +145,7 @@ void nbaMarking::Seed_Filling(const cv::Mat& binImg, cv::Mat& lableImg, int mode
 					int num = 0;
 					std::stack<std::pair<int, int>> neighborPixels;
 					neighborPixels.push(std::pair<int, int>(i, j));     // 像素位置: <i,j>
-					labels.resize(i);
-					labels[i - 1].push_back(label);
-					++label;  // 没有重复的团，开始新的标签
+					labels[0].push_back(label);
 					while (!neighborPixels.empty())
 					{
 						
@@ -187,14 +196,15 @@ void nbaMarking::Seed_Filling(const cv::Mat& binImg, cv::Mat& lableImg, int mode
 						}
 						num++;
 					}
-					labels[i - 1].push_back(num);
+					labels[1].push_back(num);
+					++label;  // 没有重复的团，开始新的标签
 				}
 			}
 		}
 	}
 	else
 	{
-		// 4邻接方法
+		// 4邻域
 		for (int i = 1; i < rows - 1; i++)
 		{
 			int* data = lableImg.ptr<int>(i);
@@ -202,9 +212,12 @@ void nbaMarking::Seed_Filling(const cv::Mat& binImg, cv::Mat& lableImg, int mode
 			{
 				if (data[j] == 255)
 				{
+					int num = 0;
 					std::stack<std::pair<int, int>> neighborPixels;
 					neighborPixels.push(std::pair<int, int>(i, j));     // 像素位置: <i,j>
-					++label;  // 没有重复的团，开始新的标签
+					if (label == 254)
+						label = 256;
+					labels[0].push_back(label);
 					while (!neighborPixels.empty())
 					{
 						std::pair<int, int> curPixel = neighborPixels.top(); //如果与上一行中一个团有重合区域，则将上一行的那个团的标号赋给它
@@ -214,36 +227,90 @@ void nbaMarking::Seed_Filling(const cv::Mat& binImg, cv::Mat& lableImg, int mode
 
 						neighborPixels.pop();
 
-						//		——————————8领域对应关系—————————
-						//		|(X - 1, Y - 1)		(X - 1, Y)		(X - 1, Y + 1) |
-						//		|  (X, Y - 1)		  (X, Y)		  (X, Y + 1)   |
-						//		|(X + 1, Y - 1)		(X + 1, Y)		(X + 1, Y + 1) |
-						//		——————————————————————————
-						if (lableImg.at<int>(curX - 1, curY) == 255)
-						{// 上边
-							neighborPixels.push(std::pair<int, int>(curX - 1, curY));
+						if (lableImg.at<int>(curX, curY - 1) == 255)
+						{//左边
+							neighborPixels.push(std::pair<int, int>(curX, curY - 1));
 						}
 						if (lableImg.at<int>(curX, curY + 1) == 255)
 						{// 右边
 							neighborPixels.push(std::pair<int, int>(curX, curY + 1));
 						}
+						if (lableImg.at<int>(curX - 1, curY) == 255)
+						{// 上边
+							neighborPixels.push(std::pair<int, int>(curX - 1, curY));
+						}
 						if (lableImg.at<int>(curX + 1, curY) == 255)
 						{// 下边
 							neighborPixels.push(std::pair<int, int>(curX + 1, curY));
 						}
-						if (lableImg.at<int>(curX, curY - 1) == 255)
-						{//左边
-							neighborPixels.push(std::pair<int, int>(curX, curY - 1));
-						}
+						num++;
 					}
+					labels[1].push_back(num);
+					++label;  // 没有重复的团，开始新的标签
 				}
 			}
 		}
 	}
 
+	//ofstream fout("3.txt");
+	//for (int i = 0; i < lableImg.rows; i++)
+	//{
+	//	int* temp = lableImg.ptr<int>(i);
+	//	for (int j = 0; j < lableImg.cols; j++)
+	//	{
+	//		int a = temp[j];
+	//		fout << a;
+	//		fout << "\t";
+	//	}
+	//	fout << "\n";
+	//}
+	//fout.close();
+
+
+
+
+	
+
+	for (int n = 0; n < labels[0].size(); n++)
+	{
+		if (labels[1][n] > lenThres)
+		{
+			for (int i = 1; i < rows; i++)
+			{
+				int* data = lableImg.ptr<int>(i);
+				for (int j = 1; j < cols; j++)
+				{
+					if (data[j] == labels[0][n])
+						lableImg.at<int>(i, j) = 0;
+					else
+						continue;
+				}
+			}
+		}
+		else
+			continue;
+	}
+
+	//ofstream fout1("4.txt");
+	//for (int i = 0; i < lableImg.rows; i++)
+	//{
+	//	int* temp = lableImg.ptr<int>(i);
+	//	for (int j = 0; j < lableImg.cols; j++)
+	//	{
+	//		int a = temp[j];
+	//		fout1 << a;
+	//		fout1 << "\t";
+	//	}
+	//	fout1 << "\n";
+	//}
+	//fout1.close();
+
+
 	int a = 0;
 
 }
+
+
 
 
 //************************************

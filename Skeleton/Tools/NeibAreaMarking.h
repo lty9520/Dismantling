@@ -19,6 +19,8 @@ class nbaMarking
 private:
 	//返回较小的值
 	int smallerone(int num1, int num2);
+	//分支长度阈值
+	int lenThres = 20;
 	
 
 
@@ -33,6 +35,10 @@ public:
 	void Two_Pass(const cv::Mat& binImg, cv::Mat& lableImg);
 	//不同连通域标记颜色
 	void LabelColor(const cv::Mat& labelImg, cv::Mat& colorLabelImg);
+	//设置筛选分支长度阈值
+	void setLenThres(int lenThres);
+	//得到筛选分支长度阈值
+	int getLenThres();
 
 
 };
