@@ -21,6 +21,8 @@ private:
 	int smallerone(int num1, int num2);
 	//分支长度阈值
 	int lenThres = 20;
+	//阈值分支删除
+	void bench_cut(vector<vector<int> > labels, Mat labelImg, int lenThres, int rows, int cols);
 	
 
 

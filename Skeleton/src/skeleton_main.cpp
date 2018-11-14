@@ -8,10 +8,10 @@
 #include <map>
 #include <fstream>
 #include <stack>
-#include "skeleton_tools.h"
-#include "benchDelete.h"
-#include "mouseEvent.h"
-#include "NeibAreaMarking.h"
+#include "..\Tools\skeleton_tools.h"
+#include "..\Tools\benchDetect.h"
+#include "..\Tools\mouseEvent.h"
+#include "..\Tools\NeibAreaMarking.h"
 
 using namespace std;
 using namespace cv;
@@ -20,7 +20,7 @@ using namespace cv;
 
 int main()
 {
-	cv::Mat raw = cv::imread("333.jpg", 0);
+	cv::Mat raw = cv::imread("123.jpg", 0);
 	cv::Mat binaryImage;
 	cv::threshold(raw, binaryImage, 180, 255, CV_THRESH_BINARY_INV);
 	cv::imshow("¶þÖµ»¯Í¼Ïñ", binaryImage * 255);
@@ -34,8 +34,8 @@ int main()
 	cout << "second" << endl;
 
 	
-	benchDelete bd;
-	bd.bench_delete(skeleton_img);
+	benchDetect bd;
+	bd.bench_detect(skeleton_img);
 
 	imshow("bench delete", skeleton_img);
 	cout << "third" << endl;
@@ -43,8 +43,9 @@ int main()
 	Mat labelImg;
 	int* labelmap[50] = {0};
 	nbaMarking nbam;
+	nbam.setLenThres(500);
 	//nbam.Two_Pass(skeleton_img, labelImg);
-	nbam.Seed_Filling(skeleton_img, labelImg, 8);
+	nbam.Seed_Filling(skeleton_img, labelImg, 4);
 	//nbam.bwLabel(skeleton_img, labelImg); 
 
 	cout << "4th" << endl;
