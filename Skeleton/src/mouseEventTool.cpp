@@ -1,4 +1,4 @@
-#include "..\Tools\mouseEvent.h"
+#include "mouseEvent.h"
 
 mouseEventTool::mouseEventTool()
 {

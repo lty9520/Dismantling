@@ -11,34 +11,80 @@ nbaMarking::~nbaMarking()
 
 }
 
-void nbaMarking::setLenThres(int lenThres_in)
+void nbaMarking::setLenThres_long(int lenThres_in)
 {
-	lenThres = lenThres_in;
+	lenThres_long = lenThres_in;
 }
 
-int nbaMarking::getLenThres()
+int nbaMarking::getLenThres_long()
 {
-	return lenThres;
+	return lenThres_long;
 }
 
-//阈值分支删除
+void nbaMarking::setLenThres_short(int lenThres_in)
+{
+	lenThres_short = lenThres_in;
+}
+
+int nbaMarking::getLenThres_short()
+{
+	return lenThres_short;
+}
+
+//过长阈值分支删除
 //************************************
-// Method:    bench_cut
-// FullName:  nbaMarking::bench_cut
+// Method:    bench_cut_long
+// FullName:  nbaMarking::bench_cut_long
 // Access:    private 
 // Returns:   void
 // Qualifier:
 // Parameter: vector<vector<int> > labels
 // Parameter: Mat labelImg
-// Parameter: int lenThres
+// Parameter: int lenThres_long
 // Parameter: int rows
 // Parameter: int cols
 //************************************
-void nbaMarking::bench_cut(vector<vector<int> > labels, Mat labelImg, int lenThres, int rows, int cols)
+void nbaMarking::bench_cut_long(vector<vector<int> > labels, Mat labelImg, int lenThres, int rows, int cols)
 {
 	for (int n = 0; n < labels[0].size(); n++)
 	{
 		if (labels[1][n] > lenThres)
+		{
+			for (int i = 1; i < rows; i++)
+			{
+				int* data = labelImg.ptr<int>(i);
+				for (int j = 1; j < cols; j++)
+				{
+					if (data[j] == labels[0][n])
+						labelImg.at<int>(i, j) = 0;
+					else
+						continue;
+				}
+			}
+		}
+		else
+			continue;
+	}
+}
+
+//过短阈值分支删除
+//************************************
+// Method:    bench_cut_short
+// FullName:  nbaMarking::bench_cut_short
+// Access:    private 
+// Returns:   void
+// Qualifier:
+// Parameter: vector<vector<int> > labels
+// Parameter: Mat labelImg
+// Parameter: int lenThres_long
+// Parameter: int rows
+// Parameter: int cols
+//************************************
+void nbaMarking::bench_cut_short(vector<vector<int> > labels, Mat labelImg, int lenThres, int rows, int cols)
+{
+	for (int n = 0; n < labels[0].size(); n++)
+	{
+		if (labels[1][n] < lenThres )
 		{
 			for (int i = 1; i < rows; i++)
 			{
@@ -302,9 +348,10 @@ void nbaMarking::Seed_Filling(const cv::Mat& binImg, cv::Mat& lableImg, int mode
 	//}
 	//fout.close();
 
+	
 
 
-	bench_cut(labels, lableImg, lenThres, rows, cols);
+	bench_cut_long(labels, lableImg, lenThres_long, rows, cols);
 
 	//ofstream fout1("4.txt");
 	//for (int i = 0; i < lableImg.rows; i++)
